@@ -65,7 +65,7 @@ static int32_t query(int fd, const char* text) {
     }
     memcpy(&len, rbuf, 4);  // assume little endian
     if (len > k_max_msg) {
-        msg("too long");
+        msg("too long response");
         return -1;
     }
     // reply body
