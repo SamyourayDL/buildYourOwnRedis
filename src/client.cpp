@@ -7,6 +7,77 @@
 #include <sys/socket.h> //socket()
 #include <netinet/in.h> //sockaddr
 #include "utility.h"
+#include <cassert>
+
+static int32_t read_all(int connfd, char* buf, size_t n) {
+    while (n > 0) {
+        ssize_t rv = read(connfd, buf, n);
+
+        if (rv <= 0) {  //if rv == 0 then we have met EOF, impossible in our protocol
+            return -1;
+        }
+        assert((size_t)rv <= n);
+
+        n -= (size_t)rv;
+        buf += rv;
+    }
+
+    return 0;
+}
+
+static int32_t write_all(int connfd, const char* buf, size_t n) {
+    while (n > 0) {
+        ssize_t rv = write(connfd, buf, n);
+
+        if (rv <= 0) {
+            return -1;
+        }
+        assert((size_t)rv <= n);
+
+        n -=rv;
+        buf += rv;
+    }
+
+    return 0;
+}
+
+static int32_t query(int fd, const char* text) {
+    uint32_t len = (uint32_t)strlen(text);
+    if (len > k_max_msg) {
+        msg("too long request body");
+        return -1;
+    }
+
+    char wbuf[4+k_max_msg];
+    memcpy(wbuf, &len, 4);
+    memcpy(wbuf+4, text, len);
+
+    if (int rv = write_all(fd, wbuf, 4+len)) {
+        return rv;
+    }
+
+    char rbuf[4 + k_max_msg + 1];
+    errno = 0;
+    int32_t err = read_all(fd, rbuf, 4);
+    if (err) {
+        msg(errno == 0 ? "EOF" : "read() error");
+        return err;
+    }
+    memcpy(&len, rbuf, 4);  // assume little endian
+    if (len > k_max_msg) {
+        msg("too long");
+        return -1;
+    }
+    // reply body
+    err = read_all(fd, &rbuf[4], len);
+    if (err) {
+        msg("read() error");
+        return err;
+    }
+    // do something
+    printf("server says: %.*s\n", len, &rbuf[4]);
+    return 0;
+}
 
 int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -24,23 +95,14 @@ int main() {
         die("connect");
     }
 
-    sockaddr_in clientAddr = {};
-    socklen_t addrlen = sizeof(clientAddr);
-    rv = getsockname(fd, (sockaddr*)&clientAddr, &addrlen);
-    if (rv < 0) {
-        die("getpeername");
-    }
-    print_sockaddr(clientAddr);
-
-    char wbuf[] = "Hello"; // sizeof(wbuf) == 6 "Hello\0"
-    std::cout << sizeof(wbuf);
-    write(fd, wbuf, sizeof(wbuf));
-
-    char rbuf[64] = {};
-    ssize_t n = read(fd, rbuf, sizeof(rbuf)-1); //blocking by default, so we will 100% get the message
-    if (n < 0) {
-        die("read");
+    int err = query(fd, "hello1");
+    if (err < 0) {
+        die("err in query1");
     }
 
-    printf("server says:%s\n", rbuf);
+    err = query(fd, "hello2");
+    if (err < 0) {
+        die("err in query2");
+    }
+
 }
