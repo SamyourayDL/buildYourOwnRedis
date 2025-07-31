@@ -129,5 +129,7 @@ int main() {
                 break;
             }
         }
+
+        close(connfd);
     }
 }

@@ -69,7 +69,7 @@ static int32_t query(int fd, const char* text) {
         return -1;
     }
     // reply body
-    err = read_all(fd, &rbuf[4], len);
+    err = read_all(fd, rbuf+4, len);
     if (err) {
         msg("read() error");
         return err;
@@ -105,4 +105,5 @@ int main() {
         die("err in query2");
     }
 
+    close(fd);
 }
