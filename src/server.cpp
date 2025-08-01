@@ -146,11 +146,10 @@ static bool try_one_request(Conn* conn) {
     //...
 
     //generate the response(echo)
-
     conn->outgoing.insert(conn->outgoing.end(), (const uint8_t*)&len, (const uint8_t*)&len+4);
     conn->outgoing.insert(conn->outgoing.end(), request, request + len);
     //remove processed message from buffer
-    conn->incoming.erase(conn->incoming.begin(), conn->incoming.begin()+4+len);
+    conn->incoming.erase(conn->incoming.begin(), conn->incoming.begin()+4+len); //clear this request data
 
     return true;
 }
@@ -169,7 +168,7 @@ static void handle_read(Conn* conn) {
     //3.Try to parse the incoming buffer
     //4.Handle data
     //5.Remove the message from incoming
-    try_one_request(conn);
+    while (try_one_request(conn)) {}    //pipelined requests
 
     if (conn->outgoing.size() > 0) {
         conn->want_read = false;
@@ -281,7 +280,5 @@ int main() {
                 delete conn;
             }
         }
-
-
     }
 }
