@@ -154,6 +154,8 @@ static bool try_one_request(Conn* conn) {
     return true;
 }
 
+static void handle_write(Conn* conn);
+
 static void handle_read(Conn* conn) {
     uint8_t buf[64 * 1024];
     int rv = read(conn->fd, buf, sizeof(buf));
@@ -173,6 +175,8 @@ static void handle_read(Conn* conn) {
     if (conn->outgoing.size() > 0) {
         conn->want_read = false;
         conn->want_write = true;
+
+        return handle_write(conn);  //optimstic handle write
     }
 }
 
@@ -180,6 +184,9 @@ static void handle_write(Conn* conn) {
     assert(conn->outgoing.size() > 0);
 
     ssize_t rv = write(conn->fd, conn->outgoing.data(), conn->outgoing.size());
+    if (rv < 0 && errno == EAGAIN) {    // if we write and client not ready to read we our buffer can be overfilled
+        return; // actually not ready
+
     if (rv < 0) {
         conn->want_close = true;
         return;
