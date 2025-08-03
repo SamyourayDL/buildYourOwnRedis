@@ -124,6 +124,11 @@ static Conn* handle_accept(int fd) {
     return conn;
 }
 
+static int32_t
+parse_req(const uint8_t* data, size_t size, std::vector<std::string>& out) {
+    const uint8_t* end = data + size;
+}
+
 static bool try_one_request(Conn* conn) {
     if (conn->incoming.size() < 4) {
         return false;
@@ -143,6 +148,11 @@ static bool try_one_request(Conn* conn) {
     const uint8_t* request = conn->incoming.data()+4;
 
     //4.Handle data
+    std::vector<std::string> cmd;
+    if (parse_req(request, len ,cmd) < 0) {
+        conn->want_close = true;
+        return false;
+    }
     //...
 
     //generate the response(echo)
@@ -184,9 +194,10 @@ static void handle_write(Conn* conn) {
     assert(conn->outgoing.size() > 0);
 
     ssize_t rv = write(conn->fd, conn->outgoing.data(), conn->outgoing.size());
-    if (rv < 0 && errno == EAGAIN) {    // if we write and client not ready to read we our buffer can be overfilled
+    if (rv < 0 && errno == EAGAIN) {
+        // if we write and client not ready to read we try to write in overfilled buff
         return; // actually not ready
-
+    }
     if (rv < 0) {
         conn->want_close = true;
         return;
