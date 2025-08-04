@@ -10,7 +10,8 @@
 #include <cerrno>   //errno global var, error_code of the last system call
 #include <cstring>  //std::strerror
 
-const size_t k_max_msg = 32 << 20;
+const size_t k_max_msg = 4096;
+const size_t k_max_args = 3;
 
 void inline die(const std::string& msg) {
     std::cerr << msg << ": " << std::strerror(errno);
