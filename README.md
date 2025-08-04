@@ -15,8 +15,8 @@
 | Concurrent IO Models      | ✅      | **Event-loop + poll + non-blocking `read()/write()`** vs Thread-based concurrency   |
 | Event Loop (Part 1)       | ✅      | Event-loop realisation based on `poll()`.                                               |
 | Event Loop (Part 2)       | ✅     | Pipelined-requests optimisation + optimistyc `write() `                   |
-| Key-Value Server          | 🔜       | Finalization of client-server model                             |
-| Hashtables (Part 1)       | ❌      |                                  |
+| Key-Value Server          | ✅       | Finalization of client-server model and network protocol                            |
+| Hashtables (Part 1)       | 🔜      |                                  |
 | Hashtables (Part 2)       | ❌      |                                       |
 | Data Serialization        | ❌      |                       |
 | Balanced Binary Tree      | ❌      |  |
