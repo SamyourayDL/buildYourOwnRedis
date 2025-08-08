@@ -1,17 +1,9 @@
 //
-// Created by dev on 7/30/25.
+// Created by dev on 8/5/25.
 //
+#include "client.h"
 
-#include <iostream>
-#include <unistd.h> //write()
-#include <sys/socket.h> //socket()
-#include <netinet/in.h> //sockaddr
-#include "utility.h"
-#include <cassert>
-#include <vector>
-#include <string>
-
-static int32_t read_all(int connfd, uint8_t* buf, size_t n) {
+int32_t read_all(int connfd, uint8_t* buf, size_t n) {
     while (n > 0) {
         ssize_t rv = read(connfd, buf, n);
 
@@ -27,7 +19,7 @@ static int32_t read_all(int connfd, uint8_t* buf, size_t n) {
     return 0;
 }
 
-static int32_t write_all(int connfd, const uint8_t* buf, size_t n) {
+int32_t write_all(int connfd, const uint8_t* buf, size_t n) {
     while (n > 0) {
         ssize_t rv = write(connfd, buf, n);
 
@@ -43,24 +35,37 @@ static int32_t write_all(int connfd, const uint8_t* buf, size_t n) {
     return 0;
 }
 
-static void buf_append(std::vector<uint8_t>& buf, const uint8_t* data, size_t len) {
+void buf_append(std::vector<uint8_t>& buf, const uint8_t* data, size_t len) {
     buf.insert(buf.end(), data, data+len);
 }
 
-using request = std::vector<std::string>;
 
-struct Request {
-    uint32_t len = 0;
-    request data;
-};
+INIT_STATUS Client::init(uint32_t host, uint16_t port) {
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return INIT_STATUS::SOCKET_FAIL;
+    }
 
-enum RESP_CODE {
-    RES_OK,
-    RES_ERR,    //error
-    RES_NX,     //key not exists in storage
-};
+    sockaddr_in address = {};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    address.sin_addr.s_addr = htonl(host);   //INADDR_LOOPBACK - 127.0.0.1
 
-static int32_t send_req(int fd, const Request& req) {
+    int rv = connect(fd, (sockaddr*)&address, sizeof(address));
+    if (rv < 0) {
+        return INIT_STATUS::CONN_FAIL;
+    }
+
+    return INIT_STATUS::OK;
+}
+
+void Client::shutdown() {
+    if (!(fd < 0)) {
+        close(fd);
+    }
+}
+
+int32_t Client::send_req(const Request& req) {
     uint32_t req_size = 4 + req.len;
     if (req_size > k_max_msg) {
         msg("too long msg");
@@ -88,7 +93,7 @@ static int32_t send_req(int fd, const Request& req) {
     return 0;
 }
 
-static int32_t read_res(int fd) {
+int32_t Client::read_res(std::string& resp) {
     std::vector<uint8_t> rbuf;
     rbuf.resize(4);
     errno = 0;
@@ -119,78 +124,23 @@ static int32_t read_res(int fd) {
     memcpy(&status, rbuf.data()+4, 4);
     if (status != RESP_CODE::RES_OK) {
         if (status == RESP_CODE::RES_NX) {
-            msg("key not exists");
-            return -1;
+            // msg("key not exists");
+            return -1 * RESP_CODE::RES_NX;  //special error
         }
 
-        msg("status not ok");
+        msg("status not OK");
         return -1;
     }
 
     // reply body
-    err = read_all(fd, rbuf.data()+8, len-4);
+    err = read_all(fd, rbuf.data()+8, len-4);   //syscall made even if len-4 = 0
     if (err) {
         msg("read() error");
         return err;
     }
 
+    resp.assign((const char*)rbuf.data()+8, len-4);
     // do something
-    printf("len:%u data:%.*s\n", len-4, len-4, &rbuf[8]);
-    return 0;
-}
-
-
-int main() {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        die("socket");
-    }
-
-    sockaddr_in address = {};
-    address.sin_family = AF_INET;
-    address.sin_port = htons(1234);
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);   //127.0.0.1
-
-    int rv = connect(fd, (sockaddr*)&address, sizeof(address));
-    if (rv < 0) {
-        die("connect");
-    }
-
-    std::vector<Request> query_list;
-    query_list.push_back( Request {
-        7+12,
-         request {"set", "a" , "kek"}
-    });
-    query_list.push_back( Request {
-        4+8,
-         request {"get", "a" }
-    });
-    query_list.push_back( Request {
-        4+8,
-         request {"del", "a" }
-    });
-    query_list.push_back( Request {
-        4+8,
-         request {"del", "b" }
-    });
-    query_list.push_back( Request {
-        4+8,
-         request {"get", "a" }
-    });
-
-    for (const auto& r : query_list) {
-        int err = send_req(fd, r);
-        if (err < 0) {
-            die("err in send_req");
-        }
-    }
-
-    for (int i = 0; i < query_list.size(); ++i) {
-        int err = read_res(fd);
-        if (err < 0) {
-            die("err in read_res");
-        }
-    }
-
-    close(fd);
+    // printf("len:%u data:%.*s\n", len-4, len-4, &rbuf[8]);
+    return (int32_t)len-4;
 }
