@@ -133,14 +133,16 @@ int32_t Client::read_res(std::string& resp) {
     }
 
     // reply body
-    err = read_all(fd, rbuf.data()+8, len-4);   //syscall made even if len-4 = 0
-    if (err) {
-        msg("read() error");
-        return err;
+    if (len-4 > 0) {
+        err = read_all(fd, rbuf.data()+8, len-4);   //syscall made even if len-4 = 0
+        if (err) {
+            msg("read() error");
+            return err;
+        }
+
+        resp.assign((const char*)rbuf.data()+8, len-4);
     }
 
-    resp.assign((const char*)rbuf.data()+8, len-4);
-    // do something
     // printf("len:%u data:%.*s\n", len-4, len-4, &rbuf[8]);
     return (int32_t)len-4;
 }

@@ -77,7 +77,7 @@ void Server::run() {
     std::vector<pollfd> poll_args;
 
     fd_set_nb(fd);  //non-blocking accept
-    while(true) {
+    while(running.load()) {
         poll_args.clear();
         pollfd pfd = {fd, POLLIN, 0};
         poll_args.push_back(pfd);
@@ -99,7 +99,7 @@ void Server::run() {
             poll_args.push_back(pfd);
         }
 
-        int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), -1);
+        int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), POLL_TIMEOUT);
         if (rv < 0 && errno == EINTR) {
             continue;   //not an error
         }
@@ -133,6 +133,19 @@ void Server::run() {
             }
         }
     }
+
+    for (auto conn : fd2conn) {
+        if (conn != NULL) {
+            close(conn->fd);
+            delete conn;
+        }
+    }
+
+    close(fd);
+}
+
+void Server::shutdown() {
+    running.store(false);
 }
 
 Server::Conn* Server::handle_accept() {
